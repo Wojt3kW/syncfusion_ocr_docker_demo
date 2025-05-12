@@ -17,13 +17,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Update="wwwroot\Data\Input.pdf">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
     <Content Update="wwwroot\Data\tessdata\eng.traineddata">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <Content Update="wwwroot\Data\tessdata\osd.traineddata1">
+    <Content Update="wwwroot\Data\tessdata\osd.traineddata">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
     <Content Update="wwwroot\Data\tessdata\pol.traineddata">
