@@ -1,0 +1,42 @@
+{
+  "profiles": {
+    "syncfusion_ocr_docker_demo": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "dotnetRunMessages": true,
+      "applicationUrl": "https://localhost:7271;http://localhost:7270"
+    },
+    "IIS Express": {
+      "commandName": "IISExpress",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    "Docker": {
+      "commandName": "Docker",
+      "launchBrowser": true,
+      "launchUrl": "{Scheme}://{ServiceHost}:{ServicePort}",
+      "sslPort": 7271,
+      "httpPort": 7270,
+      "useSSL": true,
+      "environmentVariables": {
+        "ASPNETCORE_HTTP_PORTS": "80",
+        "ASPNETCORE_HTTPS_PORTS": "443",
+        "ASPNETCORE_Kestrel__Certificates__Default__Path": "/app/cert/test_docker.pfx",
+        "ASPNETCORE_Kestrel__Certificates__Default__Password": "test"
+      }
+    }
+  },
+  "iisSettings": {
+    "windowsAuthentication": false,
+    "anonymousAuthentication": true,
+    "iisExpress": {
+      "applicationUrl": "http://localhost:7270",
+      "sslPort": 7271
+    }
+  }
+}

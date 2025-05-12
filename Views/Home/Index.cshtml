@@ -1,0 +1,35 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+}
+
+<div class="mt-4">
+    <h2>OCR Processing</h2>
+</div>
+<div class="card mt-4">
+    <div class="card-header">
+        Add Text Layer to PDF
+    </div>
+    <div class="card-body">
+        <form asp-action="AddTextLayer" asp-controller="Home" method="post" enctype="multipart/form-data">
+            <div class="form-group mb-3">
+                <label for="fileTextLayer">Select PDF file:</label>
+                <input type="file" id="fileTextLayer" name="file" class="form-control" accept=".pdf" required />
+            </div>
+            <button type="submit" class="btn btn-info" style="width:150px;height:38px">Add Text Layer</button>
+        </form>
+    </div>
+</div>
+<div class="card mt-4">
+    <div class="card-header">
+        Convert image to PDF with Text Layer
+    </div>
+    <div class="card-body">
+        <form asp-action="ProcessImageToOcrPdf" asp-controller="Home" method="post" enctype="multipart/form-data">
+            <div class="form-group mb-3">
+                <label for="pngFile">Select image file:</label>
+                <input type="file" id="pngFile" name="file" class="form-control" accept=".png,.jpg" required />
+            </div>
+            <button type="submit" class="btn btn-warning" style="width:150px;height:38px">Process image</button>
+        </form>
+    </div>
+</div>
