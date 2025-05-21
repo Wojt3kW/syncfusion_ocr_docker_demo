@@ -46,7 +46,7 @@ namespace Syncfusion_OCR_Docker.Controllers
                 return BadRequest("Please upload a file");
             }
 
-            // Check if file is a PDF
+            //Check if file is a PDF
             if (!file.ContentType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogWarning("Invalid file type uploaded: {ContentType}", file.ContentType);
@@ -57,7 +57,7 @@ namespace Syncfusion_OCR_Docker.Controllers
 
             try
             {
-                // Create a memory stream from the uploaded file
+                //Create a memory stream from the uploaded file
                 using (MemoryStream ms = new MemoryStream())
                 {
                     await file.CopyToAsync(ms);
@@ -65,74 +65,51 @@ namespace Syncfusion_OCR_Docker.Controllers
 
                     try
                     {
-                        // Attempt to load the file as a PDF
-                        PdfLoadedDocument lDoc = new PdfLoadedDocument(ms);                        // Check if the PDF already has a text layer by attempting to extract text from the first page
+                        //Attempt to load the file as a PDF
+                        PdfLoadedDocument lDoc = new PdfLoadedDocument(ms);                        //Check if the PDF already has a text layer by attempting to extract text from the first page
                         bool hasTextLayer = false;
                         _logger.LogInformation("PDF document loaded successfully with {PageCount} pages", lDoc.Pages.Count);
 
-                        if (lDoc.Pages.Count > 0)
-                        {
-                            // Extract text from the first page - if it returns content, it likely has a text layer
-                            // TODO: Consider checking all pages or a more robust method to determine if a text layer exists
-                            // or just remove this check if you want to always perform OCR
-                            string extractedText = lDoc.Pages[0].ExtractText();
-                            hasTextLayer = !string.IsNullOrWhiteSpace(extractedText);
-                            _logger.LogInformation("Text layer check completed. Document has text layer: {HasTextLayer}", hasTextLayer);
-                        }
-                        if (hasTextLayer)
-                        {
-                            _logger.LogInformation("Document already has a text layer, returning it without OCR processing");
-                            MemoryStream resultStream = new MemoryStream();
-                            lDoc.Save(resultStream);
-                            lDoc.Close();
+                        string tesseractPath = GetTesseractPath(); //Get the Tesseract path based on the OS
+                        _logger.LogInformation("Using Tesseract path: {TesseractPath}", tesseractPath);
 
-                            // Reset stream position
-                            resultStream.Position = 0;
+                        //PDF doesn't have text layer, perform OCR
+                        using OCRProcessor processor = new OCRProcessor();
+                        var languages = Languages.Polish + '+' + Languages.English;
+                        processor.Settings.Language = languages;
+                        string tessDataPath = GetTessDataPath();
+                        processor.TessDataPath = tessDataPath;
+                        _logger.LogInformation("OCR processor configured with languages: {Languages}, TessData path: {TessDataPath}",
+                            languages, tessDataPath);
+                        //Set the Unicode font for the OCR processor using a TrueType font file
+                        processor.UnicodeFont = new PdfTrueTypeFont(
+                            new FileStream(Path.GetFullPath(@$"{GetRootPath()}/Data/arialuni.ttf"), FileMode.Open), //Path to the TrueType font file
+                            12 //Font size
+                        );
 
-                            string fileName = Path.GetFileNameWithoutExtension(file.FileName) + "_WithTextLayer.pdf";
-                            _logger.LogInformation("Returning processed file: {FileName}", fileName);
-                            return File(resultStream, "application/pdf", fileName);
-                        }
-                        else
-                        {
-                            _logger.LogInformation("Document does not have a text layer, proceeding with OCR");
-                            string tesseractPath = GetTesseractPath(); // Get the Tesseract path based on the OS
-                            _logger.LogInformation("Using Tesseract path: {TesseractPath}", tesseractPath);
+                        //Process OCR
+                        _logger.LogInformation("Starting OCR processing");
+                        var startTime = DateTime.Now;
+                        var text = processor.PerformOCR(lDoc);
+                        var duration = DateTime.Now - startTime;
+                        _logger.LogInformation("OCR processing completed in {Duration} milliseconds", duration.TotalMilliseconds);
 
-                            // PDF doesn't have text layer, perform OCR
-                            using (OCRProcessor processor = new OCRProcessor())
-                            {
-                                var languages = Languages.Polish + '+' + Languages.English;
-                                processor.Settings.Language = languages;
-                                string tessDataPath = GetTessDataPath();
-                                processor.TessDataPath = tessDataPath;
-                                _logger.LogInformation("OCR processor configured with languages: {Languages}, TessData path: {TessDataPath}",
-                                    languages, tessDataPath);
+                        //Save the processed document
+                        MemoryStream resultStream = new MemoryStream();
+                        lDoc.Save(resultStream);
+                        lDoc.Close();
 
-                                // Process OCR
-                                _logger.LogInformation("Starting OCR processing");
-                                var startTime = DateTime.Now;
-                                var text = processor.PerformOCR(lDoc);
-                                var duration = DateTime.Now - startTime;
-                                _logger.LogInformation("OCR processing completed in {Duration} milliseconds", duration.TotalMilliseconds);
+                        //Reset stream position
+                        resultStream.Position = 0;                                //Return the processed file for download
+                        string fileName = Path.GetFileNameWithoutExtension(file.FileName) + "_WithTextLayer.pdf";
+                        _logger.LogInformation("OCR completed successfully, returning file: {FileName}", fileName);
 
-                                // Save the processed document
-                                MemoryStream resultStream = new MemoryStream();
-                                lDoc.Save(resultStream);
-                                lDoc.Close();
-
-                                // Reset stream position
-                                resultStream.Position = 0;                                // Return the processed file for download
-                                string fileName = Path.GetFileNameWithoutExtension(file.FileName) + "_WithTextLayer.pdf";
-                                _logger.LogInformation("OCR completed successfully, returning file: {FileName}", fileName);
-                                return File(resultStream, "application/pdf", fileName);
-                            }
-                        }
+                        return File(resultStream, "application/pdf", fileName);
                     }
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "Error loading PDF document: {Error}", ex.Message);
-                        // If we can't load it as a PDF, it's not a valid PDF file
+                        //If we can't load it as a PDF, it's not a valid PDF file
                         return BadRequest("The uploaded file is not a valid PDF");
                     }
                 }
@@ -154,7 +131,7 @@ namespace Syncfusion_OCR_Docker.Controllers
                 return BadRequest("Please upload a file");
             }
 
-            // Check if file is an image
+            //Check if file is an image
             if (!file.ContentType.StartsWith("image/"))
             {
                 _logger.LogWarning("Invalid file type uploaded: {ContentType}", file.ContentType);
@@ -166,68 +143,71 @@ namespace Syncfusion_OCR_Docker.Controllers
 
             try
             {
-                // Create a memory stream from the uploaded image file
-                using (MemoryStream imageStream = new MemoryStream())
-                {
-                    await file.CopyToAsync(imageStream);
-                    imageStream.Position = 0; _logger.LogInformation("Converting image to PDF");
-                    //Create a new PDF document.
-                    PdfDocument document = new PdfDocument();
-                    //Add a page to the document.
-                    PdfPage page = document.Pages.Add();
-                    //Create PDF graphics for a page.
-                    PdfGraphics graphics = page.Graphics;
-                    //Load the image from the disk.
-                    PdfBitmap image = new PdfBitmap(imageStream);
-                    _logger.LogInformation("Image loaded with dimensions: {Width}x{Height}", image.Width, image.Height);
+                //Create a memory stream from the uploaded image file
+                using MemoryStream imageStream = new MemoryStream();
+                await file.CopyToAsync(imageStream);
+                imageStream.Position = 0; _logger.LogInformation("Converting image to PDF");
+                //Create a new PDF document.
+                PdfDocument document = new PdfDocument();
+                //Add a page to the document.
+                PdfPage page = document.Pages.Add();
+                //Create PDF graphics for a page.
+                PdfGraphics graphics = page.Graphics;
+                //Load the image from the disk.
+                PdfBitmap image = new PdfBitmap(imageStream);
+                _logger.LogInformation("Image loaded with dimensions: {Width}x{Height}", image.Width, image.Height);
 
-                    //Draw the image.
-                    graphics.DrawImage(image, 0, 0, page.GetClientSize().Width, page.GetClientSize().Height);
-                    _logger.LogInformation("Image drawn on PDF page with size: {Width}x{Height}",
-                        page.GetClientSize().Width, page.GetClientSize().Height);
+                //Draw the image.
+                graphics.DrawImage(image, 0, 0, page.GetClientSize().Width, page.GetClientSize().Height);
+                _logger.LogInformation("Image drawn on PDF page with size: {Width}x{Height}",
+                    page.GetClientSize().Width, page.GetClientSize().Height);
 
-                    //Save the document into the stream.
-                    MemoryStream stream = new MemoryStream();
-                    document.Save(stream);
-                    _logger.LogInformation("Image converted to PDF successfully");                    //Initialize the OCR processor.
-                    string tesseractPath = GetTesseractPath(); // Get the Tesseract path based on the OS
-                    _logger.LogInformation("Using Tesseract path: {TesseractPath}", tesseractPath);
+                //Save the document into the stream.
+                MemoryStream stream = new MemoryStream();
+                document.Save(stream);
+                _logger.LogInformation("Image converted to PDF successfully");                    //Initialize the OCR processor.
+                string tesseractPath = GetTesseractPath(); //Get the Tesseract path based on the OS
+                _logger.LogInformation("Using Tesseract path: {TesseractPath}", tesseractPath);
 
-                    using (OCRProcessor processor = new OCRProcessor())
-                    {
-                        _logger.LogInformation("OCR processor initialized");
+                using OCRProcessor processor = new OCRProcessor();
+                _logger.LogInformation("OCR processor initialized");
 
-                        //Load a PDF document.
-                        PdfLoadedDocument lDoc = new PdfLoadedDocument(stream);
-                        _logger.LogInformation("PDF loaded for OCR processing with {PageCount} pages", lDoc.Pages.Count);
+                //Load a PDF document.
+                PdfLoadedDocument lDoc = new PdfLoadedDocument(stream);
+                _logger.LogInformation("PDF loaded for OCR processing with {PageCount} pages", lDoc.Pages.Count);
 
-                        var languages = Languages.Polish + '+' + Languages.English;
-                        processor.Settings.Language = languages;
-                        string tessDataPath = GetTessDataPath();
-                        processor.TessDataPath = tessDataPath;
-                        _logger.LogInformation("OCR processor configured with languages: {Languages}, TessData path: {TessDataPath}",
-                            languages, tessDataPath);
+                var languages = Languages.Polish + '+' + Languages.English;
+                processor.Settings.Language = languages;
+                string tessDataPath = GetTessDataPath();
+                processor.TessDataPath = tessDataPath;
+                _logger.LogInformation("OCR processor configured with languages: {Languages}, TessData path: {TessDataPath}",
+                    languages, tessDataPath);
+                //Set the Unicode font for the OCR processor using a TrueType font file
+                processor.UnicodeFont = new PdfTrueTypeFont(
+                    new FileStream(Path.GetFullPath(@$"{GetRootPath()}/Data/arialuni.ttf"), FileMode.Open), //Path to the TrueType font file
+                    12 //Font size
+                );
 
-                        //Process OCR by providing the PDF document.
-                        _logger.LogInformation("Starting OCR processing of image-based PDF");
-                        var startTime = DateTime.Now;
-                        processor.PerformOCR(lDoc);
-                        var duration = DateTime.Now - startTime;
-                        _logger.LogInformation("OCR processing completed in {Duration} milliseconds", duration.TotalMilliseconds);
+                //Process OCR by providing the PDF document.
+                _logger.LogInformation("Starting OCR processing of image-based PDF");
+                var startTime = DateTime.Now;
+                processor.PerformOCR(lDoc);
+                var duration = DateTime.Now - startTime;
+                _logger.LogInformation("OCR processing completed in {Duration} milliseconds", duration.TotalMilliseconds);
 
 
-                        // Save the processed document
-                        MemoryStream resultStream = new MemoryStream();
-                        lDoc.Save(resultStream);
-                        lDoc.Close();
+                //Save the processed document
+                MemoryStream resultStream = new MemoryStream();
+                lDoc.Save(resultStream);
+                lDoc.Close();
 
-                        // Reset stream position
-                        resultStream.Position = 0;                        // Return the processed file for download
-                        string fileName = Path.GetFileNameWithoutExtension(file.FileName) + "_OCR_PDF.pdf";
-                        _logger.LogInformation("Image to OCR PDF conversion completed successfully, returning file: {FileName}", fileName);
-                        return File(resultStream, "application/pdf", fileName);
-                    }
-                }
+                //Reset stream position
+                resultStream.Position = 0;
+                string fileName = Path.GetFileNameWithoutExtension(file.FileName) + "_OCR_PDF.pdf";
+                _logger.LogInformation("Image to OCR PDF conversion completed successfully, returning file: {FileName}", fileName);
+
+                //Return the processed file for download
+                return File(resultStream, "application/pdf", fileName);
             }
             catch (Exception ex)
             {
@@ -235,25 +215,23 @@ namespace Syncfusion_OCR_Docker.Controllers
                 return StatusCode(500, "An error occurred while processing your file");
             }
         }
+
         private string GetTessDataPath()
         {
-            string path;
+            string path = Path.Combine(GetRootPath(), "Data", "tessdata");
             string platform;
 
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 platform = "Windows";
-                path = Path.Combine(_hostingEnvironment.WebRootPath, "Data", "tessdata");
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
                 platform = "Linux";
-                path = Path.Combine(_hostingEnvironment.WebRootPath, "Data", "tessdata");
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
                 platform = "MacOS";
-                path = Path.Combine(_hostingEnvironment.WebRootPath, "Data", "tessdata");
             }
             else
             {
@@ -262,28 +240,28 @@ namespace Syncfusion_OCR_Docker.Controllers
                 throw new PlatformNotSupportedException("The current platform is not supported.");
             }
 
-            _logger.LogInformation("GetTessDataPath: Platform {Platform}, Path {Path}", platform, path);
+            _logger.LogInformation("GetTessDataPath: Platform='{Platform}', Path='{Path}'", platform, path);
             return path;
         }
         private string GetTesseractPath()
         {
-            string path;
+            string path = Path.Combine(GetRootPath(), "Data", "Tesseractbinaries");
             string platform;
 
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 platform = "Windows";
-                path = Path.Combine(_hostingEnvironment.WebRootPath, "Data", "Tesseractbinaries", "Windows");
+                path = Path.Combine(path, "Windows");
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
                 platform = "Linux";
-                path = Path.Combine(_hostingEnvironment.WebRootPath, "Data", "Tesseractbinaries", "Linux");
+                path = Path.Combine(path, "Linux");
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
                 platform = "MacOS";
-                path = Path.Combine(_hostingEnvironment.WebRootPath, "Data", "Tesseractbinaries", "Mac");
+                path = Path.Combine(path, "Mac");
             }
             else
             {
@@ -292,13 +270,43 @@ namespace Syncfusion_OCR_Docker.Controllers
                 throw new PlatformNotSupportedException("The current platform is not supported.");
             }
 
-            _logger.LogInformation("GetTesseractPath: Platform {Platform}, Path {Path}", platform, path);
+            _logger.LogInformation("GetTesseractPath: Platform='{Platform}', Path='{Path}'", platform, path);
 
             if (!Directory.Exists(path))
             {
                 _logger.LogWarning("Tesseract path does not exist: {Path}", path);
             }
 
+            return path;
+        }
+        private string GetRootPath()
+        {
+            string path;
+            string platform;
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                platform = "Windows";
+                path = Path.Combine(_hostingEnvironment.WebRootPath);
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                platform = "Linux";
+                path = Path.Combine(_hostingEnvironment.WebRootPath);
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                platform = "MacOS";
+                path = Path.Combine(_hostingEnvironment.WebRootPath);
+            }
+            else
+            {
+                platform = "Unknown";
+                _logger.LogError("Unsupported platform detected");
+                throw new PlatformNotSupportedException("The current platform is not supported.");
+            }
+
+            _logger.LogInformation("GetRootPath: Platform='{Platform}', RootPath='{Path}'", platform, path);
             return path;
         }
     }
