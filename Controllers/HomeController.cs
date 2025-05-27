@@ -191,7 +191,7 @@ namespace Syncfusion_OCR_Docker.Controllers
                 //Process OCR by providing the PDF document.
                 _logger.LogInformation("Starting OCR processing of image-based PDF");
                 var startTime = DateTime.Now;
-                processor.PerformOCR(lDoc);
+                var text = processor.PerformOCR(lDoc);
                 var duration = DateTime.Now - startTime;
                 _logger.LogInformation("OCR processing completed in {Duration} milliseconds", duration.TotalMilliseconds);
 
